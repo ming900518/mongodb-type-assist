@@ -40,7 +40,7 @@ pub fn parse_collections(
 fn process_document(collection_fields: &Mutex<DataStructure>, document: Document) {
     let mut collection_fields = collection_fields
         .lock()
-        .unwrap_or_else(|error| error_exit!("Unable to unlock mutex", error));
+        .unwrap_or_else(|error| error_exit!("Unable to lock the mutex", error));
     document.into_iter().for_each(|field| {
         let (field_name, mut new_types) = FieldStructure::convert(field);
         if let Some(orig_types) = collection_fields.get(&field_name) {
