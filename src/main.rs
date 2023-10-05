@@ -13,7 +13,7 @@ use mongodb::{
 };
 use serde_json::from_reader;
 use tracing::{debug, error, warn};
-use types::{typescript::TypeScriptProducer, Cli, Config};
+use types::{typescript::TypeScriptProducer, Cli, Config, FilterConfig};
 
 use crate::process::parse_collections;
 
@@ -53,24 +53,33 @@ fn main() {
     .unwrap_or_else(|error| error_exit!("Error when processing config", error))
     .database(&config.database);
 
-    let collections = if config.collections.is_none()
-        | config.collections.clone().is_some_and(|vec| vec.is_empty())
-    {
-        db.list_collections(None, None).map_or_else(
-            |error| error_exit!("Error when fetching collections", error),
-            |collection| {
-                Some(
-                    collection
-                        .into_iter()
-                        .filter_map(|data| data.ok().map(|value| value.name))
-                        .collect(),
-                )
-            },
-        )
-    } else {
-        config.collections.clone()
-    }
-    .unwrap_or_else(|| error_exit!("No collections avaliable.", ""));
+    let collections = db.list_collections(None, None).map_or_else(
+        |error| error_exit!("Error when fetching collections", error),
+        |collection| {
+            collection
+                .into_iter()
+                .filter_map(|data| {
+                    data.ok().and_then(|value| match config.collection_filter {
+                        FilterConfig::Include { ref collections } => {
+                            if collections.contains(&value.name) {
+                                None
+                            } else {
+                                Some(value.name)
+                            }
+                        }
+                        FilterConfig::Exclude { ref collections } => {
+                            if collections.contains(&value.name) {
+                                Some(value.name)
+                            } else {
+                                None
+                            }
+                        }
+                        FilterConfig::All => Some(value.name),
+                    })
+                })
+                .collect()
+        },
+    );
 
     parse_collections(&db, collections).format_type(params.output);
 }

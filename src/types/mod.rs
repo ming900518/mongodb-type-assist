@@ -16,12 +16,33 @@ pub struct Cli {
     pub output: Option<PathBuf>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub uri: String,
     pub database: String,
     pub pool_size: Option<u32>,
-    pub collections: Option<Vec<String>>,
+    #[serde(default)]
+    pub collection_filter: FilterConfig,
     pub mongodb_types: bool,
+    pub parse_field_as_map: Option<Vec<ParseAsMap>>,
+}
+
+#[derive(Deserialize, Debug, Default, Clone)]
+#[serde(tag = "type")]
+pub enum FilterConfig {
+    Include {
+        collections: Vec<String>,
+    },
+    Exclude {
+        collections: Vec<String>,
+    },
+    #[default]
+    All,
+}
+
+#[derive(Deserialize, Debug, Default, Clone)]
+pub struct ParseAsMap {
+    collection: String,
+    field: String,
 }
