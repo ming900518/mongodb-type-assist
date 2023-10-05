@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Mutex};
+use std::{collections::BTreeMap, sync::Mutex};
 
 use bson::Document;
 use mongodb::sync::Database;
@@ -13,10 +13,10 @@ use crate::{
 pub fn parse_collections(
     db: &Database,
     collections: Vec<String>,
-) -> HashMap<String, DataStructure> {
+) -> BTreeMap<String, DataStructure> {
     collections.into_par_iter().filter_map(|collection| {
         info!("Processing: {collection}");
-        let collection_fields = Mutex::new(HashMap::new());
+        let collection_fields = Mutex::new(BTreeMap::new());
         db.collection(&collection).find(None, None).map_or_else(
             |error| error!("Error when fetching documents in collecton {collection}: {error}"),
             |cursor| {

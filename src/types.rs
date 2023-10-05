@@ -1,4 +1,7 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::PathBuf,
+};
 
 use bson::Bson;
 use clap::Parser;
@@ -26,11 +29,11 @@ pub struct Config {
     pub mongodb_types: bool,
 }
 
-pub type DataStructure = HashMap<String, TypeScriptType>;
+pub type DataStructure = BTreeMap<String, TypeScriptType>;
 
-#[derive(Eq, PartialEq, Debug, Clone)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Clone)]
 pub enum TypeScriptType {
-    Array(Vec<TypeScriptType>),
+    Array(Box<TypeScriptType>),
     Object(DataStructure),
     Number,
     BigInt,
@@ -44,25 +47,49 @@ pub enum TypeScriptType {
     DateTime,
     MaxKey,
     MinKey,
-    Union(Vec<TypeScriptType>),
+    Undefined,
+    Union(BTreeSet<TypeScriptType>),
 }
 
 impl TypeScriptType {
     pub fn merge(&self, other: &Self) -> Self {
-        Self::Union(match (self, other) {
-            (Self::Union(vec_a), Self::Union(vec_b)) => [vec_a.clone(), vec_b.clone()].concat(),
-            (Self::Union(vec_a), _) => {
-                let mut new_vec = vec_a.clone();
-                new_vec.push(other.clone());
-                new_vec
+        let set = match (&self, &other) {
+            (Self::Union(set_a), Self::Union(set_b)) => {
+                let mut new_set = BTreeSet::new();
+                set_a.union(set_b).for_each(|item| {
+                    new_set.insert(item.clone());
+                });
+                new_set
             }
-            (_, Self::Union(vec_b)) => {
-                let mut new_vec = vec_b.clone();
-                new_vec.push(self.clone());
-                new_vec
+            (Self::Union(set_a), _) => {
+                let mut new_set = set_a.clone();
+                new_set.insert(other.clone());
+                new_set
             }
-            _ => vec![self.clone(), other.clone()],
-        })
+            (_, Self::Union(set_b)) => {
+                let mut new_set = set_b.clone();
+                new_set.insert(self.clone());
+                new_set
+            }
+            _ => BTreeSet::from([self.clone(), other.clone()]),
+        };
+        match set.len() {
+            0 => Self::Undefined,
+            1 => set.iter().next().unwrap_or(&Self::Undefined).clone(),
+            _ => Self::Union(set),
+        }
+    }
+}
+
+impl FromIterator<Self> for TypeScriptType {
+    fn from_iter<T: IntoIterator<Item = Self>>(iter: T) -> Self {
+        let set = iter.into_iter().collect::<BTreeSet<_>>();
+
+        match set.len() {
+            0 => Self::Undefined,
+            1 => set.iter().next().unwrap_or(&Self::Undefined).clone(),
+            _ => Self::Union(set),
+        }
     }
 }
 
@@ -87,7 +114,9 @@ impl From<Bson> for TypeScriptType {
             .mongodb_types;
 
         match (value, mongodb_types) {
-            (Bson::Array(array), _) => Self::Array(array.into_iter().map(Self::from).collect()),
+            (Bson::Array(array), _) => Self::Array(Box::from(
+                array.into_iter().map(Self::from).collect::<Self>(),
+            )),
             (Bson::Document(document), _) => {
                 Self::Object(document.into_iter().map(FieldStructure::convert).collect())
             }

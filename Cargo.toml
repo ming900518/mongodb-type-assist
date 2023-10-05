@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 bson = "2.7.0"
 clap = { version = "4.4.6", features = ["derive"] }
-crossbeam = "0.8.2"
 mongodb = { version = "2.7.0", default-features = false, features = ["tracing-unstable", "sync"] }
 rayon = "1.8.0"
 serde = { version = "1.0.188", features = ["derive"] }

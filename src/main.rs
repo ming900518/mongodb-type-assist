@@ -8,10 +8,11 @@ use std::{error::Error, fs::File, io::BufReader, panic, path::PathBuf, sync::Onc
 
 use clap::Parser;
 use mongodb::sync::Client;
-use process::parse_collections;
 use serde_json::from_reader;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 use types::{Cli, Config};
+
+use crate::process::parse_collections;
 
 static CONFIG: OnceLock<Config> = OnceLock::new();
 
@@ -54,5 +55,5 @@ fn main() {
         config.collections.clone()
     };
 
-    parse_collections(&db, collections);
+    info!("{:#?}", parse_collections(&db, collections));
 }
