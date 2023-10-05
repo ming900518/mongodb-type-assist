@@ -7,13 +7,13 @@ use tracing::{error, info, warn};
 
 use crate::{
     error_exit,
-    types::structure::{CollectionName, CollectionStruct, DataStruct, FieldStruct, FromStruct},
+    types::structure::{CollectionName, CollectionStruct, FieldStruct, FromStruct, ObjectStruct},
 };
 
 pub fn parse_collections(db: &Database, collections: Vec<String>) -> CollectionStruct {
     let set = collections.into_par_iter().filter_map(|collection| {
         info!("Processing: {collection}");
-        let collection_fields = Mutex::new(DataStruct(BTreeMap::new()));
+        let collection_fields = Mutex::new(ObjectStruct(BTreeMap::new()));
         db.collection(&collection).find(None, None).map_or_else(
             |error| error!("Error when fetching documents in collecton {collection}: {error}"),
             |cursor| {
@@ -36,7 +36,7 @@ pub fn parse_collections(db: &Database, collections: Vec<String>) -> CollectionS
     CollectionStruct(set)
 }
 
-fn process_document(collection_fields: &Mutex<DataStruct>, document: Document) {
+fn process_document(collection_fields: &Mutex<ObjectStruct>, document: Document) {
     let mut collection_fields = collection_fields
         .lock()
         .unwrap_or_else(|error| error_exit!("Unable to lock the mutex", error));

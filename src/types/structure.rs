@@ -11,10 +11,10 @@ use tracing::{error, info};
 use super::typescript::{TypeScriptProducer, TypeScriptType};
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
-pub struct CollectionStruct(pub BTreeMap<CollectionName, DataStruct>);
+pub struct CollectionStruct(pub BTreeMap<CollectionName, ObjectStruct>);
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
-pub struct DataStruct(pub BTreeMap<FieldName, TypeScriptType>);
+pub struct ObjectStruct(pub BTreeMap<FieldName, TypeScriptType>);
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
 pub struct InnerDataStruct(pub BTreeMap<InnerFieldName, TypeScriptType>);
@@ -28,7 +28,7 @@ pub struct FieldName(pub String);
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
 pub struct InnerFieldName(pub String);
 
-impl Debug for DataStruct {
+impl Debug for ObjectStruct {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for (field_name, structure) in &self.0 {
             writeln!(f, "  {field_name:?}!: {structure:#?};").ok();
