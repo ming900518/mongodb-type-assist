@@ -62,16 +62,16 @@ fn main() {
                     data.ok().and_then(|value| match config.collection_filter {
                         FilterConfig::Include { ref collections } => {
                             if collections.contains(&value.name) {
-                                None
-                            } else {
                                 Some(value.name)
+                            } else {
+                                None
                             }
                         }
                         FilterConfig::Exclude { ref collections } => {
                             if collections.contains(&value.name) {
-                                Some(value.name)
-                            } else {
                                 None
+                            } else {
+                                Some(value.name)
                             }
                         }
                         FilterConfig::All => Some(value.name),
