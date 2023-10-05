@@ -13,7 +13,7 @@ use mongodb::{
 };
 use serde_json::from_reader;
 use tracing::{debug, error, warn};
-use types::{Cli, Config, TypeScriptProducer};
+use types::{typescript::TypeScriptProducer, Cli, Config};
 
 use crate::process::parse_collections;
 
@@ -73,4 +73,14 @@ fn main() {
     .unwrap_or_else(|| error_exit!("No collections avaliable.", ""));
 
     parse_collections(&db, collections).format_type(params.output);
+}
+
+#[macro_export]
+macro_rules! error_exit {
+    ($message: expr, $error: expr) => {{
+        let error = $error;
+        let message = $message;
+        error!("{message}: {error}");
+        panic!("{error}");
+    }};
 }

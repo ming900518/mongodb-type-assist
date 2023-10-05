@@ -1,84 +1,20 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt::Debug,
-    path::PathBuf,
-};
+use std::{collections::BTreeSet, fmt::Debug, path::PathBuf};
 
 use bson::Bson;
-use clap::Parser;
-use serde::Deserialize;
-use tracing::{error, info};
+use tracing::error;
 
 use crate::{error_exit, CONFIG};
 
-#[derive(Parser)]
-#[command(author, version, about, long_about = None)]
-pub struct Cli {
-    #[arg(value_name = "CONFIG JSON FILE")]
-    pub config_file: Option<PathBuf>,
-
-    #[arg(short, long, value_name = "DIRECTORY")]
-    pub output: Option<PathBuf>,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Config {
-    pub uri: String,
-    pub database: String,
-    pub pool_size: Option<u32>,
-    pub collections: Option<Vec<String>>,
-    pub mongodb_types: bool,
-}
+use super::structure::{FromStruct, InnerDataStruct, InnerFieldStruct};
 
 pub trait TypeScriptProducer {
     fn format_type(&self, path: Option<PathBuf>);
 }
 
-pub type CollectionStructure = BTreeMap<CollectionName, DataStructure>;
-
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
-pub struct CollectionName(pub String);
-
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
-pub struct FieldName(pub String);
-
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
-pub struct InnerFieldName(pub String);
-
-impl Debug for CollectionName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "export class {} ", self.0)
-    }
-}
-
-impl Debug for FieldName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}!", self.0)
-    }
-}
-
-impl Debug for InnerFieldName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl TypeScriptProducer for CollectionStructure {
-    fn format_type(&self, _path: Option<PathBuf>) {
-        for (field_name, structure) in self {
-            info!("{field_name:?}{structure:#?}");
-        }
-    }
-}
-
-pub type DataStructure = BTreeMap<FieldName, TypeScriptType>;
-pub type InnerDataStructure = BTreeMap<InnerFieldName, TypeScriptType>;
-
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
 pub enum TypeScriptType {
     Array(Box<TypeScriptType>),
-    Object(InnerDataStructure),
+    Object(InnerDataStruct),
     Number,
     BigInt,
     Null,
@@ -107,7 +43,7 @@ impl TypeScriptType {
             Self::Array(inner_type) => format!("{}[]", inner_type.print_typescript()),
             Self::Object(data_structure) => format!("{data_structure:#?}"),
             Self::Number => "number".into(),
-            Self::BigInt => "BigInt".into(),
+            Self::BigInt => "bigint".into(),
             Self::Null => "null".into(),
             Self::String => "string".into(),
             Self::Buffer => "Buffer".into(),
@@ -168,28 +104,6 @@ impl FromIterator<Self> for TypeScriptType {
     }
 }
 
-pub trait FromStructure<T> {
-    fn convert(value: T) -> Self;
-}
-
-pub type FieldStructure = (FieldName, TypeScriptType);
-
-impl FromStructure<(String, Bson)> for FieldStructure {
-    fn convert(value: (String, Bson)) -> Self {
-        let (field_name, bson) = value;
-        (FieldName(field_name), TypeScriptType::from(bson))
-    }
-}
-
-pub type InnerFieldStructure = (InnerFieldName, TypeScriptType);
-
-impl FromStructure<(String, Bson)> for InnerFieldStructure {
-    fn convert(value: (String, Bson)) -> Self {
-        let (field_name, bson) = value;
-        (InnerFieldName(field_name), TypeScriptType::from(bson))
-    }
-}
-
 impl From<Bson> for TypeScriptType {
     fn from(value: Bson) -> Self {
         let mongodb_types = CONFIG
@@ -201,12 +115,12 @@ impl From<Bson> for TypeScriptType {
             (Bson::Array(array), _) => Self::Array(Box::from(
                 array.into_iter().map(Self::from).collect::<Self>(),
             )),
-            (Bson::Document(document), _) => Self::Object(
+            (Bson::Document(document), _) => Self::Object(InnerDataStruct(
                 document
                     .into_iter()
-                    .map(InnerFieldStructure::convert)
+                    .map(InnerFieldStruct::convert)
                     .collect(),
-            ),
+            )),
             (Bson::Double(_) | Bson::Int32(_), _) => Self::Number,
             (Bson::Int64(_) | Bson::Decimal128(_), _) => Self::BigInt,
             (Bson::String(_) | Bson::RegularExpression(_) | Bson::JavaScriptCode(_), _) => {
@@ -224,14 +138,4 @@ impl From<Bson> for TypeScriptType {
             _ => Self::Any,
         }
     }
-}
-
-#[macro_export]
-macro_rules! error_exit {
-    ($message: expr, $error: expr) => {{
-        let error = $error;
-        let message = $message;
-        error!("{message}: {error}");
-        panic!("{error}");
-    }};
 }
