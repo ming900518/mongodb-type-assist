@@ -53,33 +53,24 @@ fn main() {
     .unwrap_or_else(|error| error_exit!("Error when processing config", error))
     .database(&config.database);
 
-    let collections = db.list_collections(None, None).map_or_else(
-        |error| error_exit!("Error when fetching collections", error),
-        |collection| {
-            collection
-                .into_iter()
-                .filter_map(|data| {
-                    data.ok().and_then(|value| match config.collection_filter {
-                        FilterConfig::Include { ref collections } => {
-                            if collections.contains(&value.name) {
-                                Some(value.name)
-                            } else {
-                                None
-                            }
-                        }
-                        FilterConfig::Exclude { ref collections } => {
-                            if collections.contains(&value.name) {
-                                None
-                            } else {
-                                Some(value.name)
-                            }
-                        }
-                        FilterConfig::All => Some(value.name),
-                    })
-                })
-                .collect()
-        },
-    );
+    let collections = db
+        .list_collections(None, None)
+        .map_or_else(
+            |error| error_exit!("Error when fetching collections", error),
+            IntoIterator::into_iter,
+        )
+        .filter_map(|data| {
+            data.ok().and_then(|value| match &config.collection_filter {
+                FilterConfig::Include { collections } => {
+                    collections.contains(&value.name).then_some(value.name)
+                }
+                FilterConfig::Exclude { collections } => {
+                    (!collections.contains(&value.name)).then_some(value.name)
+                }
+                FilterConfig::All => Some(value.name),
+            })
+        })
+        .collect();
 
     parse_collections(&db, collections).format_type(params.output);
 }
