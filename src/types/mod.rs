@@ -41,8 +41,17 @@ pub enum FilterConfig {
     All,
 }
 
-#[derive(Deserialize, Debug, Default, Clone)]
+#[derive(Eq, PartialEq, Deserialize, Debug, Default, Clone)]
 pub struct ParseAsMap {
-    collection: String,
-    field: String,
+    pub collection: String,
+    pub field: String,
+}
+
+impl ParseAsMap {
+    pub fn new<T: Into<String>>(collection: T, field: T) -> Self {
+        Self {
+            collection: collection.into(),
+            field: field.into(),
+        }
+    }
 }

@@ -7,7 +7,14 @@ use tracing::{error, info, warn};
 
 use crate::{
     error_exit,
-    types::structure::{CollectionName, CollectionStruct, FieldStruct, FromStruct, ObjectStruct},
+    types::{
+        structure::{
+            CollectionName, CollectionStruct, FieldName, FieldStruct, FromStruct, ObjectStruct,
+        },
+        typescript::TypeScriptType,
+        ParseAsMap,
+    },
+    CONFIG,
 };
 
 pub fn parse_collections(db: &Database, collections: Vec<String>) -> CollectionStruct {
@@ -22,7 +29,7 @@ pub fn parse_collections(db: &Database, collections: Vec<String>) -> CollectionS
                         |error| {
                             warn!("Document in {collection} contains error. Cause: {error}");
                         },
-                        |document| process_document(&collection_fields, document),
+                        |document| process_document(&collection, &collection_fields, document),
                     );
                 });
             },
@@ -36,12 +43,27 @@ pub fn parse_collections(db: &Database, collections: Vec<String>) -> CollectionS
     CollectionStruct(set)
 }
 
-fn process_document(collection_fields: &Mutex<ObjectStruct>, document: Document) {
+fn process_document(
+    collection_name: &str,
+    collection_fields: &Mutex<ObjectStruct>,
+    document: Document,
+) {
+    let parse_field_as_map = CONFIG
+        .get()
+        .and_then(|config| config.parse_field_as_map.clone())
+        .unwrap_or_default();
+
     let mut collection_fields = collection_fields
         .lock()
         .unwrap_or_else(|error| error_exit!("Unable to lock the mutex", error));
+
     document.into_iter().for_each(|field| {
-        let (field_name, mut new_types) = FieldStruct::convert(field);
+        let (field_name, mut new_types) =
+            if parse_field_as_map.contains(&ParseAsMap::new(collection_name, &field.0)) {
+                (FieldName(field.0), TypeScriptType::Map)
+            } else {
+                FieldStruct::convert(field)
+            };
         if let Some(orig_types) = collection_fields.0.get(&field_name) {
             new_types = orig_types.merge(&new_types);
         }

@@ -29,6 +29,7 @@ pub enum TypeScriptType {
     MinKey,
     Undefined,
     Union(BTreeSet<TypeScriptType>),
+    Map,
 }
 
 impl Debug for TypeScriptType {
@@ -55,6 +56,7 @@ impl TypeScriptType {
             Self::MaxKey => "MaxKey".into(),
             Self::MinKey => "MinKey".into(),
             Self::Undefined => "undefined".into(),
+            Self::Map => "Map<string, any>".into(),
             Self::Union(types) => types
                 .iter()
                 .map(Self::print_typescript)
