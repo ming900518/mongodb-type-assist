@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, sync::Mutex};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Mutex,
+};
 
 use bson::Document;
 use mongodb::sync::Database;
@@ -24,14 +27,16 @@ pub fn parse_collections(db: &Database, collections: Vec<String>) -> CollectionS
         db.collection(&collection).find(None, None).map_or_else(
             |error| error!("Error when fetching documents in collecton {collection}: {error}"),
             |cursor| {
-                cursor.for_each(|result| {
+                let mut documents = cursor.filter_map(|result|{
                     result.map_or_else(
-                        |error| {
-                            warn!("Document in {collection} contains error. Cause: {error}");
-                        },
-                        |document| process_document(&collection, &collection_fields, document),
-                    );
-                });
+                        |error| {warn!("Document in {collection} contains error. Cause: {error}"); None},
+                        Some,
+                    )
+                }).collect::<Vec<Document>>();
+
+                documents.sort_by_key(|b| std::cmp::Reverse(std::mem::size_of_val(b)));
+
+                documents.into_iter().for_each(|document| process_document(&collection, &collection_fields, document));
             },
         );
         info!("Done processing: {collection}");
@@ -53,9 +58,13 @@ fn process_document(
         .and_then(|config| config.parse_field_as_map.clone())
         .unwrap_or_default();
 
-    let mut collection_fields = collection_fields
+    let mut orig_field_names = collection_fields
         .lock()
-        .unwrap_or_else(|error| error_exit!("Unable to lock the mutex", error));
+        .unwrap_or_else(|error| error_exit!("Unable to lock the mutex", error))
+        .0
+        .keys()
+        .map(|field_name| field_name.0.clone())
+        .collect::<BTreeSet<String>>();
 
     document.into_iter().for_each(|field| {
         let (field_name, mut new_types) =
@@ -64,9 +73,40 @@ fn process_document(
             } else {
                 FieldStruct::convert(field)
             };
-        if let Some(orig_types) = collection_fields.0.get(&field_name) {
+
+        if let Some(orig_types) = collection_fields
+            .lock()
+            .unwrap_or_else(|error| error_exit!("Unable to lock the mutex", error))
+            .0
+            .get(&field_name)
+        {
             new_types = orig_types.merge(&new_types);
         }
-        collection_fields.0.insert(field_name, new_types);
+
+        collection_fields
+            .lock()
+            .unwrap_or_else(|error| error_exit!("Unable to lock the mutex", error))
+            .0
+            .insert(field_name.clone(), new_types);
+        orig_field_names.remove(&field_name.0);
     });
+
+    for field_name in orig_field_names {
+        let mut new_types = TypeScriptType::Undefined;
+
+        if let Some(orig_types) = collection_fields
+            .lock()
+            .unwrap_or_else(|error| error_exit!("Unable to lock the mutex", error))
+            .0
+            .get(&FieldName(field_name.clone()))
+        {
+            new_types = orig_types.merge(&new_types);
+        }
+
+        collection_fields
+            .lock()
+            .unwrap_or_else(|error| error_exit!("Unable to lock the mutex", error))
+            .0
+            .insert(FieldName(field_name), new_types);
+    }
 }
