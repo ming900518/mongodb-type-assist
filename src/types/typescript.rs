@@ -114,9 +114,14 @@ impl From<Bson> for TypeScriptType {
             .mongodb_types;
 
         match (value, mongodb_types) {
-            (Bson::Array(array), _) => Self::Array(Box::from(
-                array.into_iter().map(Self::from).collect::<Self>(),
-            )),
+            (Bson::Array(array), _) => {
+                let inner_types = array.into_iter().map(Self::from).collect::<Self>();
+                if inner_types == Self::Undefined {
+                    Self::Array(Box::from(Self::Any))
+                } else {
+                    Self::Array(Box::from(inner_types))
+                }
+            }
             (Bson::Document(document), _) => Self::Object(InnerDataStruct(
                 document
                     .into_iter()
