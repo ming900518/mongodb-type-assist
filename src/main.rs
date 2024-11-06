@@ -11,7 +11,7 @@ use mongodb::{
     options::{ClientOptions, ConnectionString},
     sync::Client,
 };
-use serde_json::from_reader;
+use serde_json::{from_reader, to_string_pretty};
 use tracing::{debug, error, warn};
 use types::{typescript::TypeScriptProducer, Cli, Config, FilterConfig};
 
@@ -37,7 +37,12 @@ fn main() {
         )
         .map_err(Box::from)
         .and_then(|file| from_reader(BufReader::new(file)).map_err(Box::from))
-        .unwrap_or_else(|error: Box<dyn Error>| error_exit!("Error when processing config", error))
+        .unwrap_or_else(|error: Box<dyn Error>| {
+            if let Ok(example_string) = to_string_pretty(&Config::example()) {
+                std::fs::write("./example-config.json", example_string).ok();
+            }
+            error_exit!("Error when processing config", error)
+        })
     });
 
     let db = Client::with_options({

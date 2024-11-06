@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 pub mod structure;
 pub mod typescript;
@@ -16,7 +16,7 @@ pub struct Cli {
     pub output: Option<PathBuf>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub uri: String,
@@ -28,7 +28,26 @@ pub struct Config {
     pub parse_field_as_map: Option<Vec<ParseAsMap>>,
 }
 
-#[derive(Deserialize, Debug, Default, Clone)]
+impl Config {
+    pub fn example() -> Self {
+        Self {
+            uri: "mongodb://username:password@ip:port/?replicaSet=rs0&directConnection=true"
+                .to_owned(),
+            database: "database_name".to_owned(),
+            pool_size: Some(10),
+            collection_filter: FilterConfig::Exclude {
+                collections: vec!["excluded_collection".to_owned()],
+            },
+            mongodb_types: false,
+            parse_field_as_map: Some(vec![ParseAsMap {
+                collection: "collection_name".to_owned(),
+                field: "kv_store".to_owned(),
+            }]),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 #[serde(tag = "type")]
 pub enum FilterConfig {
     Include {
@@ -41,7 +60,7 @@ pub enum FilterConfig {
     All,
 }
 
-#[derive(Eq, PartialEq, Deserialize, Debug, Default, Clone)]
+#[derive(Eq, PartialEq, Serialize, Deserialize, Debug, Default, Clone)]
 pub struct ParseAsMap {
     pub collection: String,
     pub field: String,
